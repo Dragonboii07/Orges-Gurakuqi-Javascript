@@ -4,7 +4,7 @@ This is a minimal Express + SQL Server application for maintaining a list of per
 
 ## Features
 
-- List persons from a SQL Server database
+- List persons from a SQL Server database (falls back to in-memory store if the database is unreachable)
 - Add, edit and delete records
 - Connection pooling and parameterized queries
 - CORS enabled for local development
@@ -15,8 +15,9 @@ This is a minimal Express + SQL Server application for maintaining a list of per
 # install dependencies
 npm install
 
-# configure environment variables (optional)
-# create a .env file with DB_USER, DB_PASS, DB_SERVER, DB_PORT, DB_NAME
+# set up configuration
+cp .env.example .env           # copy the sample env file
+# edit .env and fill real database credentials
 
 # start the server
 npm start
@@ -26,12 +27,12 @@ Visit http://localhost:3000/ in your browser to open the UI.
 
 ## GitHub
 
-This project is ready to be committed to a GitHub repository. The `.gitignore` file excludes `node_modules` and environment files. Add a remote and push:
+This project is ready to be pushed to a GitHub repository. The `.gitignore` file excludes `node_modules` and environment files.
 
 ```bash
 git init
-git add .
-git commit -m "Initial commit"
-git remote add origin <your-github-url>
-git push -u origin main
+ git add .
+ git commit -m "Initial commit"
+ git remote add origin <your-github-url>
+ git push -u origin main
 ```
