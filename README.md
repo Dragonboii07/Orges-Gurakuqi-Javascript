@@ -1,4 +1,4 @@
-# Persons Management App
+# Orges-Gurakuqi-Javascript
 
 This is a minimal Express + SQL Server application for maintaining a list of persons. The repository includes a simple front-end served from the `public` folder.
 
