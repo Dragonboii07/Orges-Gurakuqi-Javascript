@@ -4,8 +4,8 @@
   "description": "Express app + SQL Server to manage persons",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
@@ -16,12 +16,15 @@
     "sql-server",
     "persons"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Orges Gurakuqi",
+  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "mssql": "^11.0.1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

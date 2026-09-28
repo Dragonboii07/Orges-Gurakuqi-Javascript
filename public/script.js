@@ -1,139 +1,133 @@
 // script.js
 
-const API_URL = 'http://localhost:3000/api/persons';
-let isEditing = false;
+// relative URL, so the page works on whatever host/port the server runs on
+const API_URL = '/api/persons';
+const FIELDS = ['firstname', 'lastname', 'birthdate', 'gender', 'firstRegistration', 'celular', 'email', 'phone'];
+let editingId = null;
 
-async function loadPersons() {
-    try {
-        const res = await fetch(API_URL);
-        if (!res.ok) throw new Error('Failed to load persons');
-        const persons = await res.json();
-        const personsContainer = document.getElementById('persons');
-        personsContainer.innerHTML = persons.map(p => `
-            <div class="card mb-2 p-2" data-id="${p.id}">
-                <div><strong>${p.firstname} ${p.lastname}</strong> (Born: ${formatDate(p.birthdate)})</div>
-                <div>Gender: ${p.gender} | First Registration: ${formatDate(p.firstRegistration)}</div>
-                <div>Cellular: ${p.celular} | Email: ${p.email} | Phone: ${p.phone}</div>
-                <button class="btn btn-danger btn-sm me-2 mt-2 delete-btn">Delete</button>
-                <button class="btn btn-secondary btn-sm mt-2 edit-btn">Edit</button>
-            </div>
-        `).join('');
-        attachCardListeners();
-    } catch (error) {
-        console.error(error);
-        alert('Error loading persons.');
-    }
+// escape text before putting it into HTML, so a name like <script> is shown
+// as text instead of being run by the browser
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
 }
 
 function formatDate(dateString) {
     if (!dateString) return '';
-    return new Date(dateString).toISOString().split('T')[0];
+    return String(dateString).slice(0, 10);
 }
 
-function attachCardListeners() {
-    document.querySelectorAll('.delete-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const id = button.closest('[data-id]').dataset.id;
-            deletePerson(id);
-        });
-    });
-    document.querySelectorAll('.edit-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const id = button.closest('[data-id]').dataset.id;
-            // load data from server instead of inferring from text
-            fetch(`${API_URL}/${id}`)
-                .then(r => r.json())
-                .then(person => fillFormForEdit(person))
-                .catch(console.error);
-        });
-    });
+async function errorMessage(res, fallback) {
+    try {
+        const body = await res.json();
+        return body.error || fallback;
+    } catch {
+        return fallback;
+    }
 }
+
+async function loadPersons() {
+    const container = document.getElementById('persons');
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(await errorMessage(res, 'Failed to load persons'));
+        const persons = await res.json();
+        if (persons.length === 0) {
+            container.innerHTML = '<p class="text-muted">No persons yet. Add one below.</p>';
+            return;
+        }
+        container.innerHTML = persons.map(p => `
+            <div class="card mb-2 p-2" data-id="${escapeHtml(p.id)}">
+                <div><strong>${escapeHtml(p.firstname)} ${escapeHtml(p.lastname)}</strong> (Born: ${escapeHtml(formatDate(p.birthdate))})</div>
+                <div>Gender: ${escapeHtml(p.gender)} | First Registration: ${escapeHtml(formatDate(p.firstRegistration))}</div>
+                <div>Cellular: ${escapeHtml(p.celular)} | Email: ${escapeHtml(p.email)} | Phone: ${escapeHtml(p.phone)}</div>
+                <div>
+                    <button class="btn btn-danger btn-sm me-2 mt-2 delete-btn">Delete</button>
+                    <button class="btn btn-secondary btn-sm mt-2 edit-btn">Edit</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+// one listener on the list handles the buttons of every card
+document.getElementById('persons').addEventListener('click', async e => {
+    const card = e.target.closest('[data-id]');
+    if (!card) return;
+    const id = card.dataset.id;
+    if (e.target.classList.contains('delete-btn')) {
+        deletePerson(id);
+    } else if (e.target.classList.contains('edit-btn')) {
+        try {
+            const res = await fetch(`${API_URL}/${id}`);
+            if (!res.ok) throw new Error(await errorMessage(res, 'Failed to load person'));
+            fillFormForEdit(await res.json());
+        } catch (error) {
+            console.error(error);
+            alert(error.message);
+        }
+    }
+});
 
 function fillFormForEdit(person) {
-    document.getElementById('personId').value = person.id;
-    document.getElementById('firstname').value = person.firstname;
-    document.getElementById('lastname').value = person.lastname;
-    if (person.birthdate) document.getElementById('birthdate').value = formatDate(person.birthdate);
-    document.getElementById('gender').value = person.gender;
-    if (person.firstRegistration) document.getElementById('firstRegistration').value = formatDate(person.firstRegistration);
-    document.getElementById('celular').value = person.celular;
-    document.getElementById('email').value = person.email;
-    document.getElementById('phone').value = person.phone;
-
-    isEditing = true;
+    editingId = person.id;
+    for (const field of FIELDS) {
+        const value = field === 'birthdate' || field === 'firstRegistration'
+            ? formatDate(person[field])
+            : person[field];
+        document.getElementById(field).value = value ?? '';
+    }
     document.getElementById('submitBtn').textContent = 'Update';
     document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('personForm').scrollIntoView({ behavior: 'smooth' });
 }
 
 function resetForm() {
-    document.getElementById('personId').value = '';
-    clearForm();
-    isEditing = false;
+    editingId = null;
+    document.getElementById('personForm').reset();
     document.getElementById('submitBtn').textContent = 'Save';
     document.getElementById('cancelBtn').style.display = 'none';
 }
 
 async function submitHandler(e) {
     e.preventDefault();
-    const id = document.getElementById('personId').value;
-    const firstname = document.getElementById('firstname').value.trim();
-    const lastname = document.getElementById('lastname').value.trim();
-    const birthdate = document.getElementById('birthdate').value;
-    const gender = document.getElementById('gender').value.trim();
-    const firstRegistration = document.getElementById('firstRegistration').value;
-    const celular = document.getElementById('celular').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-
-    if (!firstname || !lastname || !birthdate || !gender || !firstRegistration || !celular || !email || !phone) {
-        alert('Please fill in all fields.');
-        return;
+    const payload = {};
+    for (const field of FIELDS) {
+        payload[field] = document.getElementById(field).value.trim();
     }
 
-    const payload = { firstname, lastname, birthdate, gender, firstRegistration, celular, email, phone };
     try {
-        let res;
-        if (isEditing && id) {
-            res = await fetch(`${API_URL}/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-        } else {
-            res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-        }
-        if (!res.ok) throw new Error('Failed to save person');
+        const res = await fetch(editingId ? `${API_URL}/${editingId}` : API_URL, {
+            method: editingId ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(await errorMessage(res, 'Failed to save person'));
         resetForm();
         loadPersons();
     } catch (error) {
         console.error(error);
-        alert('Error saving person.');
+        alert(error.message);
     }
 }
-
-document.getElementById('personForm').addEventListener('submit', submitHandler);
-document.getElementById('cancelBtn').addEventListener('click', resetForm);
 
 async function deletePerson(id) {
     if (!confirm('Are you sure you want to delete this person?')) return;
     try {
         const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete person');
+        if (!res.ok) throw new Error(await errorMessage(res, 'Failed to delete person'));
+        if (String(editingId) === String(id)) resetForm();
         loadPersons();
     } catch (error) {
         console.error(error);
-        alert('Error deleting person.');
+        alert(error.message);
     }
 }
 
-function clearForm() {
-    ['firstname', 'lastname', 'birthdate', 'gender', 'firstRegistration', 'celular', 'email', 'phone'].forEach(id => {
-        document.getElementById(id).value = '';
-    });
-}
-
-window.onload = loadPersons;
+document.getElementById('personForm').addEventListener('submit', submitHandler);
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+loadPersons();
